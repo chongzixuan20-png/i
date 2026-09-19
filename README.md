@@ -1,52 +1,70 @@
 # InScout
 
-A small, practical Streamlit prototype for shipping inbox triage and SI/BL verification.
+InScout is now a small full-stack prototype for shipping inbox triage and SI/BL verification.
+
+## Stack
+
+- **AI:** Gemini 1.5 Flash, with a local labelled-text fallback
+- **Backend:** Python FastAPI
+- **Frontend:** React + Tailwind CSS + Vite
+- **Database:** Firebase Firestore (optional persistence)
+- **Deployment:** Google Cloud Run
+- **IDE:** Trae
+- **Source:** GitHub
+
+The organizer ZIP files are intentionally not committed. Keep `sdoc-hackathon-bundle.zip` and `sdoc-hackathon-docker.zip` outside this repository, then adapt the `DEMO_EMAILS` provider in `backend/main.py` to the supplied `loader.py` contract.
 
 ## Run locally
+
+### Backend
 
 ```bash
 python -m venv .venv
 # Windows: .venv\\Scripts\\activate
 source .venv/bin/activate
-pip install -r requirements.txt
-streamlit run app.py
+pip install -r backend/requirements.txt
+uvicorn backend.main:app --reload --port 8080
 ```
 
-The application starts in **local demo mode** and does not require an API key. It includes a representative inbox and a verification request so the complete UI can be demonstrated before the competition ZIP files are available.
-
-## Enable Gemini
-
-1. Revoke the API key that was posted in chat and create a replacement.
-2. Set it only in your local environment or deployment secret:
+### Frontend
 
 ```bash
-export GEMINI_API_KEY="your-new-key"
-streamlit run app.py
+cd frontend
+npm install
+npm run dev
 ```
 
-For Streamlit Cloud, add `GEMINI_API_KEY` under App settings → Secrets. Never commit `.env`, keys, or service-account JSON files.
+Open `http://localhost:5173`. The frontend calls `http://localhost:8080` by default. Set `VITE_API_URL` when the API is hosted elsewhere.
 
-Gemini is used for inbox classification and seven-field extraction. If it is unavailable, the app deliberately falls back to a transparent local label extractor so the demo remains usable.
+The demo works without Gemini or Firestore. The demo inbox and one intentional container-count mismatch are built in so the complete flow can be shown immediately.
 
-## Add the organizer dataset
+## Secrets
 
-Do not commit the ZIP archives or extracted competition data if they contain restricted material. Extract them outside the repository, inspect their `README` and loader contract, then adapt the `DEMO_EMAILS` provider in `app.py` to call the provided `loader.py`. Keep the current demo records as a fallback.
+The previously exposed Gemini key must be revoked and replaced. Never commit API keys or Firebase service-account JSON. Set secrets through the shell locally or Cloud Run Secret Manager:
 
-The expected adapter should return records shaped like:
-
-```python
-{"id": "...", "sender": "...", "subject": "...", "preview": "...", "attachments": [...]}
+```powershell
+$env:GEMINI_API_KEY="your-new-key"
+$env:FIREBASE_SERVICE_ACCOUNT_JSON='{"type":"service_account", ...}'
 ```
 
-For a competition submission, connect the organizer's `score_cli.py` separately and write the generated report JSON to the exact path/shape required by their sample submission. The UI's download button already produces a structured report containing `fields`, `mismatches`, confidence, and review metadata.
+Cloud Run should receive both values from Secret Manager. `CORS_ORIGINS` should contain the deployed frontend origin.
 
-## Deployment
+## Cloud Run
 
-For a quick Cloud Run deployment, containerize the Streamlit app with a non-root user and inject `GEMINI_API_KEY` using Secret Manager. Firebase persistence is intentionally not hard-coded into the prototype: add it after the organizer's data contract is confirmed, using Firestore server credentials from Secret Manager rather than a downloaded key in Git.
+The included `backend/Dockerfile` deploys the FastAPI API:
 
-## Prototype limitations
+```bash
+gcloud run deploy inscout-api --source . --region asia-southeast1 --allow-unauthenticated
+```
 
-- The demo dataset is embedded because the ZIP files were not available in the repository.
-- The fallback extractor handles labelled plain text; Gemini improves varied wording and aliases.
-- Streamlit session state is temporary. Add Firestore for shared operator queues.
-- PDF support extracts text but does not OCR scanned images.
+For a production setup, build and host the React `frontend/dist` separately or serve it through Firebase Hosting, and set `VITE_API_URL` to the Cloud Run URL. Keep the API secret-free in GitHub.
+
+## Competition integration plan
+
+1. Extract both organizer ZIPs outside the repo.
+2. Read the provided `loader.py` and return inbox records from `/api/inbox`.
+3. Preserve the seven-field report shape expected by `sample_submission.json`.
+4. Run the organizer `score_cli.py` against exported reports.
+5. Add a Firestore collection for persistent review decisions.
+
+PDF text extraction is supported; scanned PDFs still need OCR.

@@ -1,18 +1,18 @@
 # InScout
 
-InScout is now a small full-stack prototype for shipping inbox triage and SI/BL verification.
+InScout is a practical full-stack prototype for shipping inbox triage and SI/BL verification.
 
 ## Stack
 
-- **AI:** Gemini 1.5 Flash, with a local labelled-text fallback
-- **Backend:** Python FastAPI
-- **Frontend:** React + Tailwind CSS + Vite
-- **Database:** Firebase Firestore (optional persistence)
-- **Deployment:** Google Cloud Run
-- **IDE:** Trae
-- **Source:** GitHub
+- AI: Gemini 1.5 Flash with a local labelled-text fallback
+- Backend: Python FastAPI
+- Frontend: React + Tailwind CSS + Vite
+- Database: Firebase Firestore (optional persistence)
+- Deployment: Google Cloud Run
+- IDE: Trae
+- Source control: GitHub
 
-The organizer ZIP files are intentionally not committed. Keep `sdoc-hackathon-bundle.zip` and `sdoc-hackathon-docker.zip` outside this repository, then adapt the `DEMO_EMAILS` provider in `backend/main.py` to the supplied `loader.py` contract.
+The organizer ZIP files are intentionally not committed. Keep `sdoc-hackathon-bundle.zip` and `sdoc-hackathon-docker.zip` outside this repository, then adapt the demo provider in `backend/main.py` to the supplied `loader.py` contract.
 
 ## Run locally
 
@@ -20,7 +20,7 @@ The organizer ZIP files are intentionally not committed. Keep `sdoc-hackathon-bu
 
 ```bash
 python -m venv .venv
-# Windows: .venv\\Scripts\\activate
+# Windows: .venv\Scripts\activate
 source .venv/bin/activate
 pip install -r backend/requirements.txt
 uvicorn backend.main:app --reload --port 8080
@@ -34,37 +34,49 @@ npm install
 npm run dev
 ```
 
-Open `http://localhost:5173`. The frontend calls `http://localhost:8080` by default. Set `VITE_API_URL` when the API is hosted elsewhere.
-
-The demo works without Gemini or Firestore. The demo inbox and one intentional container-count mismatch are built in so the complete flow can be shown immediately.
+Open `http://localhost:5173` and ensure the frontend is pointed at the backend host. By default the frontend calls `http://localhost:8080`.
 
 ## Secrets
 
-The previously exposed Gemini key must be revoked and replaced. Never commit API keys or Firebase service-account JSON. Set secrets through the shell locally or Cloud Run Secret Manager:
+The Gemini key posted in chat must be revoked and replaced with a new key. Do not commit any API keys or Firebase credentials.
+
+Set keys in your local shell or deployment environment:
+
+```bash
+export GEMINI_API_KEY="your-new-key"
+export FIREBASE_SERVICE_ACCOUNT_JSON='{"type":"service_account", ...}'
+export CORS_ORIGINS="http://localhost:5173,http://127.0.0.1:5173"
+```
+
+For Windows PowerShell:
 
 ```powershell
 $env:GEMINI_API_KEY="your-new-key"
-$env:FIREBASE_SERVICE_ACCOUNT_JSON='{"type":"service_account", ...}'
+$env:FireBASE_SERVICE_ACCOUNT_JSON='{"type":"service_account", ...}'
+$env:CORS_ORIGINS="http://localhost:5173,http://127.0.0.1:5173"
 ```
 
-Cloud Run should receive both values from Secret Manager. `CORS_ORIGINS` should contain the deployed frontend origin.
+## Cloud Run deployment
 
-## Cloud Run
-
-The included `backend/Dockerfile` deploys the FastAPI API:
+The included Dockerfile packages the FastAPI service for Cloud Run:
 
 ```bash
-gcloud run deploy inscout-api --source . --region asia-southeast1 --allow-unauthenticated
+gcloud builds submit --tag gcr.io/PROJECT_ID/inscout-api .
+gcloud run deploy inscout-api --image gcr.io/PROJECT_ID/inscout-api --platform managed --region asia-southeast1 --allow-unauthenticated
 ```
 
-For a production setup, build and host the React `frontend/dist` separately or serve it through Firebase Hosting, and set `VITE_API_URL` to the Cloud Run URL. Keep the API secret-free in GitHub.
+Then point the frontend to the deployed Cloud Run URL through `VITE_API_URL`.
 
 ## Competition integration plan
 
 1. Extract both organizer ZIPs outside the repo.
-2. Read the provided `loader.py` and return inbox records from `/api/inbox`.
+2. Read the provided `loader.py` and convert its records into the same shape as `DEMO_EMAILS`.
 3. Preserve the seven-field report shape expected by `sample_submission.json`.
-4. Run the organizer `score_cli.py` against exported reports.
+4. Run the organizer `score_cli.py` against exported report JSON files.
 5. Add a Firestore collection for persistent review decisions.
 
-PDF text extraction is supported; scanned PDFs still need OCR.
+## Notes
+
+- PDF text extraction is supported.
+- Scanned PDFs still require OCR.
+- The demo flow works even without Gemini or Firestore configured.
